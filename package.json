@@ -1,0 +1,22 @@
+{
+  "name": "it-ticketing-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IT Ticketing System monorepo (Express API + Next.js web)",
+  "scripts": {
+    "check": "pnpm --filter @it-ticketing/shared run build && pnpm --filter api exec tsc --noEmit && pnpm --filter api run build && pnpm --filter web run build",
+    "build": "pnpm run check",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter api exec prisma migrate deploy",
+    "db:seed": "pnpm --filter api exec prisma db seed",
+    "db:setup": "pnpm run db:migrate && pnpm run db:seed",
+    "dev:api": "pnpm --filter api run dev",
+    "dev:web": "pnpm --filter web run dev",
+    "lint:web": "pnpm --filter web run lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.34.1"
+}

@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  END_USER
+  DEPARTMENT_MEMBER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+enum ActivityType {
+  TICKET_CREATED
+  ASSIGNED
+  REASSIGNED
+  STATUS_CHANGED
+  ESCALATED
+  REMARK_ADDED
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  users              User[]
+  pipelineSteps      TicketTypePipelineStep[]
+  ticketsAtQueue     Ticket[]                 @relation("TicketCurrentDepartment")
+  activityTargets    TicketActivity[]         @relation("EscalationTargetDepartment")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdTickets   Ticket[]         @relation("TicketCreator")
+  assignedTickets  Ticket[]         @relation("TicketAssignee")
+  activities       TicketActivity[]
+}
+
+model TicketType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  pipelineSteps TicketTypePipelineStep[]
+  tickets       Ticket[]
+}
+
+/// Ordered pipeline: step 0 = first queue on create
+model TicketTypePipelineStep {
+  id             String     @id @default(cuid())
+  ticketTypeId   String
+  ticketType     TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id])
+  stepOrder      Int        // 0, 1, 2...
+
+  @@unique([ticketTypeId, stepOrder])
+  @@unique([ticketTypeId, departmentId])
+}
+
+model Ticket {
+  id                  String       @id @default(cuid())
+  title               String
+  description         String
+  status              TicketStatus @default(OPEN)
+  ticketTypeId        String
+  ticketType          TicketType   @relation(fields: [ticketTypeId], references: [id])
+  createdById         String
+  createdBy           User         @relation("TicketCreator", fields: [createdById], references: [id])
+  currentDepartmentId String
+  currentDepartment   Department   @relation("TicketCurrentDepartment", fields: [currentDepartmentId], references: [id])
+  assigneeId          String?      // null = Unassigned in current dept queue
+  assignee            User?        @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  pipelineStepIndex   Int          @default(0) // which step in the type's pipeline
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  activities TicketActivity[]
+}
+
+model TicketActivity {
+  id                        String       @id @default(cuid())
+  ticketId                  String
+  ticket                    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type                      ActivityType
+  message                   String?      // remark, escalation note, etc.
+  actorId                   String
+  actor                     User         @relation(fields: [actorId], references: [id])
+  /// Assignment / escalation metadata (store as relations + optional JSON)
+  targetUserId              String?
+  targetDepartmentId        String?
+  targetDepartment          Department?  @relation("EscalationTargetDepartment", fields: [targetDepartmentId], references: [id])
+  previousStatus            TicketStatus?
+  newStatus                 TicketStatus?
+  createdAt                 DateTime     @default(now())
+
+  @@index([ticketId, createdAt])
+}
