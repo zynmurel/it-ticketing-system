@@ -3,6 +3,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth";
+import departmentRoutes from "./routes/departments";
 import ticketRoutes from "./routes/tickets";
 
 const app = express();
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/departments", departmentRoutes);
 app.use("/tickets", ticketRoutes);
 
 app.listen(port, () => {

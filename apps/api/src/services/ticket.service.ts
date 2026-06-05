@@ -33,6 +33,7 @@ async function recordActivity(
     message?: string;
     targetUserId?: string;
     targetDepartmentId?: string;
+    sourceDepartmentId?: string;
     previousStatus?: TicketStatus;
     newStatus?: TicketStatus;
   },
@@ -57,7 +58,8 @@ export async function createTicket(
     throw new Error("TICKET_TYPE_NOT_FOUND");
   }
 
-  const firstStep = await getPipelineStepAt(input.ticketTypeId, 0);
+  const steps = await getPipelineSteps(input.ticketTypeId);
+  const firstStep = steps[0];
   if (!firstStep) {
     throw new Error("NO_PIPELINE");
   }
@@ -88,11 +90,36 @@ export async function createTicket(
   });
 }
 
-function canViewTicket(actor: AuthUser, ticket: { createdById: string; currentDepartmentId: string }) {
+async function ticketHasDepartmentActivity(
+  ticketId: string,
+  departmentId: string,
+) {
+  const count = await prisma.ticketActivity.count({
+    where: {
+      ticketId,
+      actor: { departmentId },
+    },
+  });
+  return count > 0;
+}
+
+async function canViewTicket(
+  actor: AuthUser,
+  ticket: { id: string; createdById: string; currentDepartmentId: string },
+) {
   if (actor.role === "END_USER") {
     return ticket.createdById === actor.id;
   }
-  return ticket.currentDepartmentId === actor.departmentId;
+
+  if (ticket.currentDepartmentId === actor.departmentId) {
+    return true;
+  }
+
+  if (ticket.createdById === actor.id) {
+    return true;
+  }
+
+  return ticketHasDepartmentActivity(ticket.id, actor.departmentId);
 }
 
 export async function getTicketForActor(actor: AuthUser, id: string) {
@@ -100,7 +127,7 @@ export async function getTicketForActor(actor: AuthUser, id: string) {
   if (!ticket) {
     throw new Error("TICKET_NOT_FOUND");
   }
-  if (!canViewTicket(actor, ticket)) {
+  if (!(await canViewTicket(actor, ticket))) {
     throw new Error("FORBIDDEN");
   }
   return ticket;
@@ -122,36 +149,108 @@ export async function getTicketById(id: string) {
   });
 }
 
-/** End users: tickets they submitted. */
+/** Personal tickets: created by or assigned to the user, excluding unassigned. */
 export async function listMyTickets(actor: AuthUser) {
   return prisma.ticket.findMany({
-    where: { createdById: actor.id },
+    where: {
+      assigneeId: { not: null },
+      OR: [{ createdById: actor.id }, { assigneeId: actor.id }],
+    },
     orderBy: { updatedAt: "desc" },
     include: ticketInclude,
   });
 }
 
-/** Department view: unassigned queue + assigned in-progress tickets. */
-export async function getDepartmentQueue(actor: AuthUser) {
+/**
+ * Tickets that left the viewer's department after department activity.
+ * Department members: activity by someone in their dept, ticket no longer there.
+ * End users: tickets they created with at least one escalation.
+ */
+export async function listEscalatedTickets(actor: AuthUser) {
+  if (actor.role === "DEPARTMENT_MEMBER") {
+    return prisma.ticket.findMany({
+      where: {
+        currentDepartmentId: { not: actor.departmentId },
+        activities: {
+          some: {
+            actor: { departmentId: actor.departmentId },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      include: ticketInclude,
+    });
+  }
+
+  return prisma.ticket.findMany({
+    where: {
+      createdById: actor.id,
+      activities: {
+        some: { type: ActivityType.ESCALATED },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    include: ticketInclude,
+  });
+}
+
+function departmentTicketWhere(actor: AuthUser): Prisma.TicketWhereInput {
   if (actor.role !== "DEPARTMENT_MEMBER") {
     throw new Error("FORBIDDEN");
   }
 
-  const baseWhere: Prisma.TicketWhereInput = {
-    currentDepartmentId: actor.departmentId,
-  };
+  return { currentDepartmentId: actor.departmentId };
+}
 
+/** Unassigned requests currently in the member's department queue. */
+export async function listDepartmentUnassigned(actor: AuthUser) {
+  return prisma.ticket.findMany({
+    where: { ...departmentTicketWhere(actor), assigneeId: null },
+    orderBy: { createdAt: "asc" },
+    include: ticketInclude,
+  });
+}
+
+/** Assigned tickets currently in the member's department. */
+export async function listDepartmentAssigned(actor: AuthUser) {
+  return prisma.ticket.findMany({
+    where: { ...departmentTicketWhere(actor), assigneeId: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    include: ticketInclude,
+  });
+}
+
+/** Tickets escalated away from this department — stay on the assigned board. */
+export async function listDepartmentBoardEscalated(actor: AuthUser) {
+  return prisma.ticket.findMany({
+    where: {
+      currentDepartmentId: { not: actor.departmentId },
+      activities: {
+        some: {
+          type: ActivityType.ESCALATED,
+          sourceDepartmentId: actor.departmentId,
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    include: ticketInclude,
+  });
+}
+
+export async function getDepartmentBoard(actor: AuthUser) {
+  const [inDepartment, escalated] = await Promise.all([
+    listDepartmentAssigned(actor),
+    listDepartmentBoardEscalated(actor),
+  ]);
+
+  return { inDepartment, escalated };
+}
+
+/** Department view: unassigned queue + assigned in-progress tickets. */
+export async function getDepartmentQueue(actor: AuthUser) {
   const [unassigned, assigned] = await Promise.all([
-    prisma.ticket.findMany({
-      where: { ...baseWhere, assigneeId: null },
-      orderBy: { createdAt: "asc" },
-      include: ticketInclude,
-    }),
-    prisma.ticket.findMany({
-      where: { ...baseWhere, assigneeId: { not: null } },
-      orderBy: { updatedAt: "desc" },
-      include: ticketInclude,
-    }),
+    listDepartmentUnassigned(actor),
+    listDepartmentAssigned(actor),
   ]);
 
   return { unassigned, assigned };
@@ -217,9 +316,7 @@ export async function assignTicket(
 
     await recordActivity(tx, {
       ticketId,
-      type: ticket.assigneeId
-        ? ActivityType.REASSIGNED
-        : ActivityType.ASSIGNED,
+      type: ticket.assigneeId ? ActivityType.REASSIGNED : ActivityType.ASSIGNED,
       actorId: actor.id,
       targetUserId: assigneeId,
       message: ticket.assigneeId
@@ -269,6 +366,36 @@ export async function updateTicketStatus(
   });
 }
 
+export async function getEscalationPreview(actor: AuthUser, ticketId: string) {
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+  if (!ticket) {
+    throw new Error("TICKET_NOT_FOUND");
+  }
+
+  if (
+    actor.role !== "DEPARTMENT_MEMBER" ||
+    ticket.currentDepartmentId !== actor.departmentId
+  ) {
+    throw new Error("FORBIDDEN");
+  }
+  if (
+    ticket.status === TicketStatus.RESOLVED ||
+    ticket.status === TicketStatus.CLOSED
+  ) {
+    throw new Error("ESCALATION_NOT_ALLOWED");
+  }
+
+  const nextStep = await getNextStep(
+    ticket.ticketTypeId,
+    ticket.pipelineStepIndex,
+  );
+
+  return {
+    canEscalate: nextStep !== null,
+    nextDepartment: nextStep?.department ?? null,
+  };
+}
+
 export async function escalateTicket(
   actor: AuthUser,
   ticketId: string,
@@ -284,6 +411,12 @@ export async function escalateTicket(
     ticket.currentDepartmentId !== actor.departmentId
   ) {
     throw new Error("FORBIDDEN");
+  }
+  if (
+    ticket.status === TicketStatus.RESOLVED ||
+    ticket.status === TicketStatus.CLOSED
+  ) {
+    throw new Error("ESCALATION_NOT_ALLOWED");
   }
 
   const nextStep = await getNextStep(
@@ -311,6 +444,7 @@ export async function escalateTicket(
       type: ActivityType.ESCALATED,
       actorId: actor.id,
       targetDepartmentId: nextStep.departmentId,
+      sourceDepartmentId: ticket.currentDepartmentId,
       message: message?.trim() || undefined,
       previousStatus: ticket.status,
       newStatus: TicketStatus.ESCALATED,

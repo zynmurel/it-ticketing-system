@@ -49,6 +49,28 @@ router.get("/my", async (req, res) => {
     const tickets = await ticketService.listMyTickets(req.user);
     res.json({ tickets });
 });
+router.get("/escalated", async (req, res) => {
+    const tickets = await ticketService.listEscalatedTickets(req.user);
+    res.json({ tickets });
+});
+router.get("/department/unassigned", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
+    try {
+        const tickets = await ticketService.listDepartmentUnassigned(req.user);
+        res.json({ tickets });
+    }
+    catch (err) {
+        (0, errors_1.sendServiceError)(res, err);
+    }
+});
+router.get("/department/assigned", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
+    try {
+        const tickets = await ticketService.listDepartmentAssigned(req.user);
+        res.json({ tickets });
+    }
+    catch (err) {
+        (0, errors_1.sendServiceError)(res, err);
+    }
+});
 router.get("/department/queue", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
     try {
         const queue = await ticketService.getDepartmentQueue(req.user);

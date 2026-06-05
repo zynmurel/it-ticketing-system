@@ -70,8 +70,13 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.get("/me", authMiddleware, (req, res) => {
-  res.json({ user: req.user });
+router.get("/me", authMiddleware, async (req, res) => {
+  const user = await authService.findUserById(req.user!.id);
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  res.json({ user });
 });
 
 export default router;

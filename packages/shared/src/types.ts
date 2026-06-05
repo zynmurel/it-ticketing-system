@@ -19,6 +19,11 @@ export type AuthUser = {
   name: string;
   role: Role;
   departmentId: string;
+  department: DepartmentRef;
+};
+
+export type DepartmentMember = UserRef & {
+  role: Role;
 };
 
 export type PipelineStep = {
@@ -79,6 +84,16 @@ export type TicketDetail = TicketSummary & {
 export type DepartmentQueue = {
   unassigned: TicketSummary[];
   assigned: TicketSummary[];
+};
+
+export type DepartmentBoard = {
+  inDepartment: TicketSummary[];
+  escalated: TicketSummary[];
+};
+
+export type EscalationPreview = {
+  canEscalate: boolean;
+  nextDepartment: DepartmentRef | null;
 };
 
 export type LoginResponse = {

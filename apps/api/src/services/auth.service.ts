@@ -9,6 +9,7 @@ const userSelect = {
   name: true,
   role: true,
   departmentId: true,
+  department: { select: { id: true, name: true, slug: true } },
 } as const;
 
 export async function login(email: string, password: string) {
@@ -77,11 +78,41 @@ export async function register(input: {
   return { user, token };
 }
 
+function toAuthUser(
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    departmentId: string;
+    department: { id: string; name: string; slug: string };
+  },
+): AuthUser {
+  return { ...user, role: user.role as Role };
+}
+
 export async function findUserById(id: string): Promise<AuthUser | null> {
   const user = await prisma.user.findUnique({
     where: { id },
     select: userSelect,
   });
   if (!user) return null;
-  return { ...user, role: user.role as Role };
+  return toAuthUser(user);
+}
+
+export async function listDepartmentMembers(actor: AuthUser) {
+  if (actor.role !== "DEPARTMENT_MEMBER") {
+    throw new Error("FORBIDDEN");
+  }
+
+  return prisma.user.findMany({
+    where: { departmentId: actor.departmentId },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
 }

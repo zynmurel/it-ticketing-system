@@ -21,6 +21,10 @@ function toPipelineStep(step: {
   };
 }
 
+function isContiguousFromZero(steps: { stepOrder: number }[]) {
+  return steps.every((step, index) => step.stepOrder === index);
+}
+
 /** Ordered pipeline departments for a ticket type (step 0 = first queue on create). */
 export async function getPipelineSteps(
   ticketTypeId: string,
@@ -30,6 +34,10 @@ export async function getPipelineSteps(
     orderBy: { stepOrder: "asc" },
     include: stepInclude,
   });
+
+  if (!isContiguousFromZero(steps)) {
+    throw new Error("INVALID_PIPELINE");
+  }
 
   return steps.map(toPipelineStep);
 }
@@ -53,5 +61,6 @@ export async function getNextStep(
   ticketTypeId: string,
   currentIndex: number,
 ): Promise<PipelineStep | null> {
-  return getPipelineStepAt(ticketTypeId, currentIndex + 1);
+  const steps = await getPipelineSteps(ticketTypeId);
+  return steps.find((step) => step.stepOrder > currentIndex) ?? null;
 }

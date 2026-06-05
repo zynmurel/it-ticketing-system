@@ -16,6 +16,9 @@ function toPipelineStep(step) {
         department: step.department,
     };
 }
+function isContiguousFromZero(steps) {
+    return steps.every((step, index) => step.stepOrder === index);
+}
 /** Ordered pipeline departments for a ticket type (step 0 = first queue on create). */
 async function getPipelineSteps(ticketTypeId) {
     const steps = await prisma_1.prisma.ticketTypePipelineStep.findMany({
@@ -23,6 +26,9 @@ async function getPipelineSteps(ticketTypeId) {
         orderBy: { stepOrder: "asc" },
         include: stepInclude,
     });
+    if (!isContiguousFromZero(steps)) {
+        throw new Error("INVALID_PIPELINE");
+    }
     return steps.map(toPipelineStep);
 }
 async function getPipelineStepAt(ticketTypeId, stepIndex) {
@@ -36,5 +42,6 @@ async function getPipelineStepAt(ticketTypeId, stepIndex) {
 }
 /** Next department in the pipeline, or null if already at the last step. */
 async function getNextStep(ticketTypeId, currentIndex) {
-    return getPipelineStepAt(ticketTypeId, currentIndex + 1);
+    const steps = await getPipelineSteps(ticketTypeId);
+    return steps.find((step) => step.stepOrder > currentIndex) ?? null;
 }

@@ -1,0 +1,32 @@
+import type { AuthUser, LoginResponse } from "@it-ticketing/shared";
+
+const TOKEN_KEY = "it-ticketing-token";
+const USER_KEY = "it-ticketing-user";
+
+export function saveSession({ token, user }: LoginResponse) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearSession() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
+}

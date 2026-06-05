@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = login;
 exports.register = register;
 exports.findUserById = findUserById;
+exports.listDepartmentMembers = listDepartmentMembers;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma_1 = require("../lib/prisma");
 const jwt_1 = require("../lib/jwt");
@@ -15,6 +16,7 @@ const userSelect = {
     name: true,
     role: true,
     departmentId: true,
+    department: { select: { id: true, name: true, slug: true } },
 };
 async function login(email, password) {
     const user = await prisma_1.prisma.user.findUnique({
@@ -66,6 +68,9 @@ async function register(input) {
     });
     return { user, token };
 }
+function toAuthUser(user) {
+    return { ...user, role: user.role };
+}
 async function findUserById(id) {
     const user = await prisma_1.prisma.user.findUnique({
         where: { id },
@@ -73,5 +78,20 @@ async function findUserById(id) {
     });
     if (!user)
         return null;
-    return { ...user, role: user.role };
+    return toAuthUser(user);
+}
+async function listDepartmentMembers(actor) {
+    if (actor.role !== "DEPARTMENT_MEMBER") {
+        throw new Error("FORBIDDEN");
+    }
+    return prisma_1.prisma.user.findMany({
+        where: { departmentId: actor.departmentId },
+        orderBy: { name: "asc" },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+        },
+    });
 }

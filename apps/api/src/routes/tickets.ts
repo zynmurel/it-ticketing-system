@@ -19,6 +19,50 @@ router.get("/my", async (req, res) => {
   res.json({ tickets });
 });
 
+router.get("/escalated", async (req, res) => {
+  const tickets = await ticketService.listEscalatedTickets(req.user!);
+  res.json({ tickets });
+});
+
+router.get(
+  "/department/unassigned",
+  requireRole(Role.DEPARTMENT_MEMBER),
+  async (req, res) => {
+    try {
+      const tickets = await ticketService.listDepartmentUnassigned(req.user!);
+      res.json({ tickets });
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  },
+);
+
+router.get(
+  "/department/assigned",
+  requireRole(Role.DEPARTMENT_MEMBER),
+  async (req, res) => {
+    try {
+      const tickets = await ticketService.listDepartmentAssigned(req.user!);
+      res.json({ tickets });
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  },
+);
+
+router.get(
+  "/department/board",
+  requireRole(Role.DEPARTMENT_MEMBER),
+  async (req, res) => {
+    try {
+      const board = await ticketService.getDepartmentBoard(req.user!);
+      res.json(board);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  },
+);
+
 router.get(
   "/department/queue",
   requireRole(Role.DEPARTMENT_MEMBER),
@@ -26,6 +70,22 @@ router.get(
     try {
       const queue = await ticketService.getDepartmentQueue(req.user!);
       res.json(queue);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  },
+);
+
+router.get(
+  "/:id/escalation-preview",
+  requireRole(Role.DEPARTMENT_MEMBER),
+  async (req, res) => {
+    try {
+      const preview = await ticketService.getEscalationPreview(
+        req.user!,
+        req.params.id as string,
+      );
+      res.json(preview);
     } catch (err) {
       sendServiceError(res, err);
     }

@@ -39,6 +39,7 @@ model Department {
   pipelineSteps      TicketTypePipelineStep[]
   ticketsAtQueue     Ticket[]                 @relation("TicketCurrentDepartment")
   activityTargets    TicketActivity[]         @relation("EscalationTargetDepartment")
+  activitySources    TicketActivity[]         @relation("EscalationSourceDepartment")
 }
 
 model User {
@@ -112,6 +113,8 @@ model TicketActivity {
   targetUserId              String?
   targetDepartmentId        String?
   targetDepartment          Department?  @relation("EscalationTargetDepartment", fields: [targetDepartmentId], references: [id])
+  sourceDepartmentId        String?
+  sourceDepartment          Department?  @relation("EscalationSourceDepartment", fields: [sourceDepartmentId], references: [id])
   previousStatus            TicketStatus?
   newStatus                 TicketStatus?
   createdAt                 DateTime     @default(now())

@@ -87,7 +87,12 @@ router.post("/register", async (req, res) => {
         res.status(500).json({ error: "Registration failed" });
     }
 });
-router.get("/me", authMiddleware_1.authMiddleware, (req, res) => {
-    res.json({ user: req.user });
+router.get("/me", authMiddleware_1.authMiddleware, async (req, res) => {
+    const user = await authService.findUserById(req.user.id);
+    if (!user) {
+        res.status(401).json({ error: "User not found" });
+        return;
+    }
+    res.json({ user });
 });
 exports.default = router;
