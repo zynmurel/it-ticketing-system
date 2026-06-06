@@ -6,15 +6,23 @@ import type { DepartmentBoard } from "@it-ticketing/shared";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DepartmentMemberGuard } from "@/components/department/department-member-guard";
 import { AppShell } from "@/components/layout/app-shell";
+import { AssignedBoardFilters } from "@/components/tickets/assigned-board-filters";
 import { DepartmentAssignedBoard } from "@/components/tickets/department-assigned-board";
 import { DepartmentAssignedTable } from "@/components/tickets/department-assigned-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  defaultDepartmentBoardFilters,
+  type DepartmentBoardFilters,
+} from "@/lib/department-board-shared";
 import { authFetch, ApiError } from "@/lib/api";
 
 export default function DepartmentAssignedPage() {
   const { user } = useAuth();
   const [board, setBoard] = useState<DepartmentBoard | null>(null);
   const [activeView, setActiveView] = useState("board");
+  const [filters, setFilters] = useState<DepartmentBoardFilters>(
+    defaultDepartmentBoardFilters,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,38 +65,44 @@ export default function DepartmentAssignedPage() {
               {error}
             </p>
           ) : board && user ? (
-            <Tabs value={activeView} onValueChange={setActiveView}>
-              <TabsList>
-                <TabsTrigger value="board">
-                  <LayoutGridIcon />
-                  Board
-                </TabsTrigger>
-                <TabsTrigger value="table">
-                  <TableIcon />
-                  Table
-                </TabsTrigger>
-              </TabsList>
+            <div className="space-y-4">
+              <AssignedBoardFilters filters={filters} onChange={setFilters} />
 
-              <TabsContent value="board" className="mt-4">
-                {activeView === "board" ? (
-                  <DepartmentAssignedBoard
-                    departmentId={user.departmentId}
-                    board={board}
-                    onBoardChange={setBoard}
-                  />
-                ) : null}
-              </TabsContent>
+              <Tabs value={activeView} onValueChange={setActiveView}>
+                <TabsList>
+                  <TabsTrigger value="board">
+                    <LayoutGridIcon />
+                    Board
+                  </TabsTrigger>
+                  <TabsTrigger value="table">
+                    <TableIcon />
+                    Table
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="table" className="mt-4">
-                {activeView === "table" ? (
-                  <DepartmentAssignedTable
-                    departmentId={user.departmentId}
-                    board={board}
-                    onBoardChange={setBoard}
-                  />
-                ) : null}
-              </TabsContent>
-            </Tabs>
+                <TabsContent value="board" className="mt-4">
+                  {activeView === "board" ? (
+                    <DepartmentAssignedBoard
+                      departmentId={user.departmentId}
+                      board={board}
+                      onBoardChange={setBoard}
+                      filters={filters}
+                    />
+                  ) : null}
+                </TabsContent>
+
+                <TabsContent value="table" className="mt-4">
+                  {activeView === "table" ? (
+                    <DepartmentAssignedTable
+                      departmentId={user.departmentId}
+                      board={board}
+                      onBoardChange={setBoard}
+                      filters={filters}
+                    />
+                  ) : null}
+                </TabsContent>
+              </Tabs>
+            </div>
           ) : null}
         </div>
       </AppShell>

@@ -13,3 +13,11 @@ export function filterTicketsBySearch(
     return title.includes(normalized) || type.includes(normalized);
   });
 }
+
+export function filterTicketsByTicketType(
+  tickets: TicketSummary[],
+  ticketTypeId: string | null,
+): TicketSummary[] {
+  if (!ticketTypeId) return tickets;
+  return tickets.filter((ticket) => ticket.ticketTypeId === ticketTypeId);
+}

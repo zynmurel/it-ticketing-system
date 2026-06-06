@@ -59,6 +59,8 @@ export type TicketSummary = {
   currentDepartment: DepartmentRef;
   createdBy: UserRef;
   assignee: UserRef | null;
+  /** Assignee before this department escalated the ticket (board escalated column). */
+  escalatedFromAssigneeId?: string | null;
 };
 
 export type ActivityItem = {
@@ -74,6 +76,7 @@ export type ActivityItem = {
   createdAt: string;
   actor: { id: string; name: string };
   targetDepartment: DepartmentRef | null;
+  targetUser: UserRef | null;
 };
 
 /** Full ticket with chronological activity log. */

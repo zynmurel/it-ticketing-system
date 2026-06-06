@@ -28,11 +28,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const departmentTicketItems = [
     {
-      title: "Queue",
+      title: "Queue Table",
       url: "/department/queue",
     },
     {
-      title: "Assigned",
+      title: "Assigned (Board & Table)",
       url: "/department/assigned",
     },
   ];

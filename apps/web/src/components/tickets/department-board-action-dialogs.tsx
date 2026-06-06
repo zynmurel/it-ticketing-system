@@ -1,6 +1,7 @@
 "use client";
 
 import type { DepartmentRef, TicketSummary } from "@it-ticketing/shared";
+import { TicketStatus } from "@it-ticketing/shared";
 import { ESCALATE_ONLY_IN_PROGRESS_MESSAGE } from "@/lib/department-board-shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +14,17 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { StatusChangeDialog } from "./status-change-dialog";
 
 type DepartmentBoardActionDialogsProps = {
-  closePending: TicketSummary | null;
-  onClosePendingChange: (open: boolean) => void;
+  statusChangePending: {
+    ticket: TicketSummary;
+    status: TicketStatus;
+  } | null;
+  onStatusChangePendingChange: (open: boolean) => void;
+  statusRemark: string;
+  onStatusRemarkChange: (value: string) => void;
+  onStatusChangeConfirm: () => void;
   escalateFlow: {
     ticket: TicketSummary;
     nextDepartment: DepartmentRef;
@@ -29,13 +37,15 @@ type DepartmentBoardActionDialogsProps = {
   escalateBlockedOpen: boolean;
   onEscalateBlockedOpenChange: (open: boolean) => void;
   dialogUpdating: boolean;
-  onCloseConfirm: () => void;
   onEscalateConfirm: () => void;
 };
 
 export function DepartmentBoardActionDialogs({
-  closePending,
-  onClosePendingChange,
+  statusChangePending,
+  onStatusChangePendingChange,
+  statusRemark,
+  onStatusRemarkChange,
+  onStatusChangeConfirm,
   escalateFlow,
   onEscalateFlowChange,
   escalateMessage,
@@ -45,43 +55,25 @@ export function DepartmentBoardActionDialogs({
   escalateBlockedOpen,
   onEscalateBlockedOpenChange,
   dialogUpdating,
-  onCloseConfirm,
   onEscalateConfirm,
 }: DepartmentBoardActionDialogsProps) {
   return (
     <>
-      <Dialog
-        open={Boolean(closePending)}
-        onOpenChange={(open) => !open && onClosePendingChange(false)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Close this ticket?</DialogTitle>
-            <DialogDescription>
-              Closing marks the ticket as finished. The requester will no longer
-              receive updates, and assignment and status changes will be locked.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onClosePendingChange(false)}
-              disabled={dialogUpdating}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onCloseConfirm}
-              disabled={dialogUpdating}
-            >
-              {dialogUpdating ? "Closing…" : "Close ticket"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StatusChangeDialog
+        open={Boolean(statusChangePending)}
+        onOpenChange={(open) => {
+          if (!open) {
+            onStatusChangePendingChange(false);
+            onStatusRemarkChange("");
+          }
+        }}
+        status={statusChangePending?.status ?? null}
+        ticketTitle={statusChangePending?.ticket.title}
+        remark={statusRemark}
+        onRemarkChange={onStatusRemarkChange}
+        updating={dialogUpdating}
+        onConfirm={onStatusChangeConfirm}
+      />
 
       <Dialog
         open={Boolean(escalateFlow)}
@@ -101,7 +93,7 @@ export function DepartmentBoardActionDialogs({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="escalate-note">Note (optional)</Label>
+            <Label htmlFor="escalate-note">Remark (optional)</Label>
             <Textarea
               id="escalate-note"
               value={escalateMessage}

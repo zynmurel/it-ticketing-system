@@ -27,8 +27,10 @@ import { useDepartmentBoardMutations } from "@/hooks/use-department-board-mutati
 import {
   BOARD_COLUMNS,
   buildColumnTickets,
+  filterDepartmentBoard,
   resolveTargetColumn,
   type BoardColumnId,
+  type DepartmentBoardFilters,
 } from "@/lib/department-board-shared";
 import { ticketStatusDot, ticketStatusStyles } from "@/lib/ticket-status-theme";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,7 @@ type DepartmentAssignedBoardProps = {
   departmentId: string;
   board: DepartmentBoard;
   onBoardChange: (board: DepartmentBoard) => void;
+  filters: DepartmentBoardFilters;
 };
 
 function BoardTicketCard({
@@ -160,7 +163,7 @@ function BoardColumn({
     >
       {isOver && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/10 dark:bg-background/80 backdrop-blur-sm top-[41px]">
-          <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-2 shadow-sm">
+          <div className="flex gap-2 rounded-md bg-background/80 px-3 py-20 shadow-sm h-full">
             <ArrowDown className="size-4 text-primary" />
             <span className="text-sm font-medium">Move ticket here</span>
           </div>
@@ -185,7 +188,7 @@ function BoardColumn({
           {tickets.length}
         </span>
       </div>
-      <div className="flex flex-1 flex-col gap-2 overflow-y-hidden overflow-x-hidden p-2">
+      <div className="flex flex-1 flex-col gap-1 overflow-y-hidden overflow-x-hidden py-1 px-1">
         {tickets.length === 0 ? (
           <p className="px-2 py-6 text-center text-xs text-muted-foreground">
             No tickets
@@ -226,10 +229,19 @@ export function DepartmentAssignedBoard({
   departmentId,
   board,
   onBoardChange,
+  filters,
 }: DepartmentAssignedBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const columns = useMemo(() => buildColumnTickets(board), [board]);
+  const displayBoard = useMemo(
+    () => filterDepartmentBoard(board, filters),
+    [board, filters],
+  );
+
+  const columns = useMemo(
+    () => buildColumnTickets(displayBoard),
+    [displayBoard],
+  );
 
   const ticketById = useMemo(() => {
     const map = new Map<string, TicketSummary>();
@@ -307,8 +319,16 @@ export function DepartmentAssignedBoard({
       </DndContext>
 
       <DepartmentBoardActionDialogs
-        closePending={mutations.closePending}
-        onClosePendingChange={(open) => !open && mutations.setClosePending(null)}
+        statusChangePending={mutations.statusChangePending}
+        onStatusChangePendingChange={(open) => {
+          if (!open) {
+            mutations.setStatusChangePending(null);
+            mutations.setStatusRemark("");
+          }
+        }}
+        statusRemark={mutations.statusRemark}
+        onStatusRemarkChange={mutations.setStatusRemark}
+        onStatusChangeConfirm={() => void mutations.handleStatusChangeConfirm()}
         escalateFlow={mutations.escalateFlow}
         onEscalateFlowChange={(open) => {
           if (!open) {
@@ -323,7 +343,6 @@ export function DepartmentAssignedBoard({
         escalateBlockedOpen={mutations.escalateBlockedOpen}
         onEscalateBlockedOpenChange={mutations.setEscalateBlockedOpen}
         dialogUpdating={mutations.dialogUpdating}
-        onCloseConfirm={() => void mutations.handleCloseConfirm()}
         onEscalateConfirm={() => void mutations.handleEscalateConfirm()}
       />
     </div>

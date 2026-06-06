@@ -58,8 +58,8 @@ export default function TicketsPage() {
             <h1 className="text-2xl font-semibold tracking-tight">My tickets</h1>
             <p className="text-sm text-muted-foreground">
               {isDepartmentMember
-                ? "Tickets you created or are assigned to. Unassigned requests stay in Department queue."
-                : "Tickets you created that have been assigned. Unassigned requests are not listed here."}
+                ? "Tickets you created or are assigned to."
+                : "Tickets you created and any requests assigned to you."}
             </p>
           </div>
           <Button onClick={openNewTicket}>
@@ -89,7 +89,7 @@ export default function TicketsPage() {
             tickets={filteredTickets}
             emptyMessage={
               tickets.length === 0
-                ? "No assigned tickets yet."
+                ? "No tickets yet. Create one to get started."
                 : search.trim()
                   ? "No tickets match your search."
                   : "No tickets match the selected statuses."

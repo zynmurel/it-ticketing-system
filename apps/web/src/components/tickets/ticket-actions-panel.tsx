@@ -8,9 +8,7 @@ import {
   type TicketDetail,
 } from "@it-ticketing/shared";
 import {
-  ChevronDownIcon,
   ChevronRightIcon,
-  CircleDotIcon,
   UserPlusIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -21,14 +19,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +31,7 @@ import { ticketStatusDot, ticketStatusStyles } from "@/lib/ticket-status-theme";
 import { cn } from "@/lib/utils";
 import { getUserInitials } from "@/lib/user-initials";
 import { Separator } from "../ui/separator";
+import { StatusChangeDialog } from "./status-change-dialog";
 
 const allStatuses = Object.values(TicketStatus).filter(
   (status) => status !== TicketStatus.ESCALATED,
@@ -74,16 +65,16 @@ export function TicketActionsPanel({
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [statusChangeTarget, setStatusChangeTarget] =
+    useState<TicketStatus | null>(null);
+  const [statusRemark, setStatusRemark] = useState("");
 
   const canManage =
     user?.role === Role.DEPARTMENT_MEMBER &&
-    ticket.currentDepartmentId === user.departmentId;
+    ticket.currentDepartmentId === user.departmentId && !["ESCALATED", "CLOSED"].includes(ticket.status);
 
   const canChangeStatus =
-    canManage &&
-    Boolean(ticket.assigneeId) &&
-    !["CLOSED"].includes(ticket.status as TicketStatus);
+    canManage && ticket.status !== TicketStatus.CLOSED;
 
   const canAssign = canManage && ticket.status !== TicketStatus.CLOSED;
 
@@ -119,26 +110,29 @@ export function TicketActionsPanel({
   function onStatusSelect(status: TicketDetail["status"]) {
     if (!canChangeStatus || status === ticket.status) return;
 
-    if (status === TicketStatus.CLOSED) {
-      setCloseConfirmOpen(true);
-      return;
-    }
-
-    void handleStatusChange(status);
+    setStatusRemark("");
+    setStatusChangeTarget(status);
   }
 
-  async function handleStatusChange(status: TicketDetail["status"]) {
-    if (!canChangeStatus || status === ticket.status) return;
+  async function handleStatusChangeConfirm() {
+    if (!canChangeStatus || !statusChangeTarget) return;
+
+    const status = statusChangeTarget;
+    const message = statusRemark.trim();
 
     setUpdating(true);
     setActionError(null);
     try {
       await authFetch(`/tickets/${ticket.id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          message: message || undefined,
+        }),
       });
       await refreshTicket();
-      setCloseConfirmOpen(false);
+      setStatusChangeTarget(null);
+      setStatusRemark("");
     } catch (err) {
       setActionError(
         err instanceof ApiError ? err.message : "Could not update status.",
@@ -327,35 +321,21 @@ export function TicketActionsPanel({
         </CollapsibleContent>
       </Collapsible>
 
-      <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Close this ticket?</DialogTitle>
-            <DialogDescription>
-              Closing marks the ticket as finished. The requester will no longer
-              receive updates, and assignment and status changes will be locked.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCloseConfirmOpen(false)}
-              disabled={updating}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => handleStatusChange(TicketStatus.CLOSED)}
-              disabled={updating}
-            >
-              {updating ? "Closing…" : "Close ticket"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StatusChangeDialog
+        open={Boolean(statusChangeTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setStatusChangeTarget(null);
+            setStatusRemark("");
+          }
+        }}
+        status={statusChangeTarget}
+        ticketTitle={ticket.title}
+        remark={statusRemark}
+        onRemarkChange={setStatusRemark}
+        updating={updating}
+        onConfirm={() => void handleStatusChangeConfirm()}
+      />
     </aside>
   );
 }

@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { TicketDetail } from "@it-ticketing/shared";
+import { Role, TicketStatus, type TicketDetail } from "@it-ticketing/shared";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { TicketActionsPanel } from "@/components/tickets/ticket-actions-panel";
 import { TicketActivities } from "@/components/tickets/ticket-activities";
 import { TicketDetailsCard } from "@/components/tickets/ticket-details-card";
+import { TicketRemarkForm } from "@/components/tickets/ticket-remark-form";
 import { authFetch, ApiError } from "@/lib/api";
 
 export default function TicketDetailPage() {
   const params = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +33,8 @@ export default function TicketDetailPage() {
   useEffect(() => {
     loadTicket().finally(() => setLoading(false));
   }, [loadTicket]);
+
+  const canAddRemark = false
 
   return (
     <AppShell title="Ticket details">
@@ -55,6 +60,15 @@ export default function TicketDetailPage() {
               </section>
               <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <TicketActivities activities={ticket.activities} />
+                {canAddRemark ? (
+                  <aside className="h-fit rounded-xl border border-border bg-card/60 p-4 lg:sticky lg:top-4">
+                    <h3 className="mb-3 text-sm font-medium">Remarks</h3>
+                    <TicketRemarkForm
+                      ticketId={ticket.id}
+                      onRemarkAdded={() => void loadTicket()}
+                    />
+                  </aside>
+                ) : null}
               </div>
             </div>
           </div>

@@ -71,10 +71,28 @@ router.get("/department/assigned", (0, requireRole_1.requireRole)(shared_1.Role.
         (0, errors_1.sendServiceError)(res, err);
     }
 });
+router.get("/department/board", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
+    try {
+        const board = await ticketService.getDepartmentBoard(req.user);
+        res.json(board);
+    }
+    catch (err) {
+        (0, errors_1.sendServiceError)(res, err);
+    }
+});
 router.get("/department/queue", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
     try {
         const queue = await ticketService.getDepartmentQueue(req.user);
         res.json(queue);
+    }
+    catch (err) {
+        (0, errors_1.sendServiceError)(res, err);
+    }
+});
+router.get("/:id/escalation-preview", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
+    try {
+        const preview = await ticketService.getEscalationPreview(req.user, req.params.id);
+        res.json(preview);
     }
     catch (err) {
         (0, errors_1.sendServiceError)(res, err);
@@ -134,13 +152,13 @@ router.post("/:id/escalate", (0, requireRole_1.requireRole)(shared_1.Role.DEPART
     }
 });
 router.patch("/:id/status", (0, requireRole_1.requireRole)(shared_1.Role.DEPARTMENT_MEMBER), async (req, res) => {
-    const { status } = req.body;
+    const { status, message } = req.body;
     if (!status || !Object.values(shared_1.TicketStatus).includes(status)) {
         res.status(400).json({ error: "Valid status is required" });
         return;
     }
     try {
-        const ticket = await ticketService.updateTicketStatus(req.user, req.params.id, status);
+        const ticket = await ticketService.updateTicketStatus(req.user, req.params.id, status, message);
         res.json({ ticket });
     }
     catch (err) {

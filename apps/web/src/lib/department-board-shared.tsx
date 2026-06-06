@@ -3,8 +3,34 @@ import {
   type DepartmentBoard,
   type TicketSummary,
 } from "@it-ticketing/shared";
+import {
+  filterTicketsBySearch,
+  filterTicketsByTicketType,
+} from "@/lib/filter-tickets";
 
 export type BoardColumnId = "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "ESCALATED";
+
+export type DepartmentBoardFilters = {
+  assigneeId: string | null;
+  search: string;
+  ticketTypeId: string | null;
+};
+
+export const defaultDepartmentBoardFilters = (): DepartmentBoardFilters => ({
+  assigneeId: null,
+  search: "",
+  ticketTypeId: null,
+});
+
+export function hasActiveBoardFilters(
+  filters: DepartmentBoardFilters,
+): boolean {
+  return (
+    Boolean(filters.search.trim()) ||
+    Boolean(filters.assigneeId) ||
+    Boolean(filters.ticketTypeId)
+  );
+}
 
 export const BOARD_COLUMNS: {
   id: BoardColumnId;
@@ -29,6 +55,45 @@ export function statusForColumn(column: BoardColumnId): TicketStatus | null {
   if (column === "RESOLVED") return TicketStatus.RESOLVED;
   if (column === "CLOSED") return TicketStatus.CLOSED;
   return null;
+}
+
+export function filterDepartmentBoard(
+  board: DepartmentBoard,
+  filters: DepartmentBoardFilters,
+): DepartmentBoard {
+  let inDepartment = board.inDepartment;
+  let escalated = board.escalated;
+
+  if (filters.assigneeId) {
+    inDepartment = inDepartment.filter(
+      (ticket) => ticket.assigneeId === filters.assigneeId,
+    );
+    escalated = escalated.filter(
+      (ticket) =>
+        ticket.escalatedFromAssigneeId === filters.assigneeId ||
+        ticket.assigneeId === filters.assigneeId,
+    );
+  }
+
+  inDepartment = filterTicketsBySearch(inDepartment, filters.search);
+  escalated = filterTicketsBySearch(escalated, filters.search);
+
+  inDepartment = filterTicketsByTicketType(inDepartment, filters.ticketTypeId);
+  escalated = filterTicketsByTicketType(escalated, filters.ticketTypeId);
+
+  return { inDepartment, escalated };
+}
+
+/** @deprecated Use filterDepartmentBoard instead. */
+export function filterBoardByAssignee(
+  board: DepartmentBoard,
+  assigneeId: string | null,
+): DepartmentBoard {
+  return filterDepartmentBoard(board, {
+    assigneeId,
+    search: "",
+    ticketTypeId: null,
+  });
 }
 
 export function buildColumnTickets(board: DepartmentBoard) {
@@ -81,6 +146,7 @@ export function applyEscalateToBoard(
     status: TicketStatus.ESCALATED,
     assigneeId: null,
     assignee: null,
+    escalatedFromAssigneeId: ticket.assigneeId,
     updatedAt: new Date().toISOString(),
   };
 

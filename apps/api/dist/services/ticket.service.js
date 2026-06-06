@@ -8,10 +8,13 @@ exports.listMyTickets = listMyTickets;
 exports.listEscalatedTickets = listEscalatedTickets;
 exports.listDepartmentUnassigned = listDepartmentUnassigned;
 exports.listDepartmentAssigned = listDepartmentAssigned;
+exports.listDepartmentBoardEscalated = listDepartmentBoardEscalated;
+exports.getDepartmentBoard = getDepartmentBoard;
 exports.getDepartmentQueue = getDepartmentQueue;
 exports.listTicketTypes = listTicketTypes;
 exports.assignTicket = assignTicket;
 exports.updateTicketStatus = updateTicketStatus;
+exports.getEscalationPreview = getEscalationPreview;
 exports.escalateTicket = escalateTicket;
 exports.addTicketRemark = addTicketRemark;
 const shared_1 = require("@it-ticketing/shared");
@@ -101,7 +104,7 @@ async function getTicketForActor(actor, id) {
     return ticket;
 }
 async function getTicketById(id) {
-    return prisma_1.prisma.ticket.findUnique({
+    const ticket = await prisma_1.prisma.ticket.findUnique({
         where: { id },
         include: {
             ...ticketInclude,
@@ -114,12 +117,34 @@ async function getTicketById(id) {
             },
         },
     });
+    if (!ticket)
+        return null;
+    const targetUserIds = [
+        ...new Set(ticket.activities
+            .map((activity) => activity.targetUserId)
+            .filter((id) => Boolean(id))),
+    ];
+    const targetUsers = targetUserIds.length > 0
+        ? await prisma_1.prisma.user.findMany({
+            where: { id: { in: targetUserIds } },
+            select: { id: true, name: true, email: true },
+        })
+        : [];
+    const targetUserById = new Map(targetUsers.map((user) => [user.id, user]));
+    return {
+        ...ticket,
+        activities: ticket.activities.map((activity) => ({
+            ...activity,
+            targetUser: activity.targetUserId
+                ? (targetUserById.get(activity.targetUserId) ?? null)
+                : null,
+        })),
+    };
 }
-/** Personal tickets: created by or assigned to the user, excluding unassigned. */
+/** Personal tickets: created by or assigned to the user. */
 async function listMyTickets(actor) {
     return prisma_1.prisma.ticket.findMany({
         where: {
-            assigneeId: { not: null },
             OR: [{ createdById: actor.id }, { assigneeId: actor.id }],
         },
         orderBy: { updatedAt: "desc" },
@@ -178,6 +203,59 @@ async function listDepartmentAssigned(actor) {
         orderBy: { updatedAt: "desc" },
         include: ticketInclude,
     });
+}
+/** Tickets escalated away from this department — stay on the assigned board. */
+async function listDepartmentBoardEscalated(actor) {
+    const tickets = await prisma_1.prisma.ticket.findMany({
+        where: {
+            currentDepartmentId: { not: actor.departmentId },
+            activities: {
+                some: {
+                    type: shared_1.ActivityType.ESCALATED,
+                    OR: [
+                        { sourceDepartmentId: actor.departmentId },
+                        {
+                            sourceDepartmentId: null,
+                            actor: { departmentId: actor.departmentId },
+                        },
+                    ],
+                },
+            },
+        },
+        orderBy: { updatedAt: "desc" },
+        include: {
+            ...ticketInclude,
+            activities: {
+                where: {
+                    type: shared_1.ActivityType.ESCALATED,
+                    OR: [
+                        { sourceDepartmentId: actor.departmentId },
+                        {
+                            sourceDepartmentId: null,
+                            actor: { departmentId: actor.departmentId },
+                        },
+                    ],
+                },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { actorId: true, targetUserId: true },
+            },
+        },
+    });
+    return tickets.map(({ activities, ...ticket }) => {
+        const escalation = activities[0];
+        return {
+            ...ticket,
+            escalatedFromAssigneeId: escalation?.targetUserId ?? escalation?.actorId ?? null,
+        };
+    });
+}
+async function getDepartmentBoard(actor) {
+    const [inDepartment, escalated] = await Promise.all([
+        listDepartmentAssigned(actor),
+        listDepartmentBoardEscalated(actor),
+    ]);
+    return { inDepartment, escalated };
 }
 /** Department view: unassigned queue + assigned in-progress tickets. */
 async function getDepartmentQueue(actor) {
@@ -238,16 +316,13 @@ async function assignTicket(actor, ticketId, assigneeId) {
             type: ticket.assigneeId ? shared_1.ActivityType.REASSIGNED : shared_1.ActivityType.ASSIGNED,
             actorId: actor.id,
             targetUserId: assigneeId,
-            message: ticket.assigneeId
-                ? `Reassigned to ${assignee.name}`
-                : `Assigned to ${assignee.name}`,
             previousStatus: ticket.status,
             newStatus: updated.status,
         });
         return updated;
     });
 }
-async function updateTicketStatus(actor, ticketId, status) {
+async function updateTicketStatus(actor, ticketId, status, message) {
     const ticket = await prisma_1.prisma.ticket.findUnique({ where: { id: ticketId } });
     if (!ticket) {
         throw new Error("TICKET_NOT_FOUND");
@@ -266,11 +341,31 @@ async function updateTicketStatus(actor, ticketId, status) {
             ticketId,
             type: shared_1.ActivityType.STATUS_CHANGED,
             actorId: actor.id,
+            message: message?.trim() || undefined,
             previousStatus: ticket.status,
             newStatus: status,
         });
         return updated;
     });
+}
+async function getEscalationPreview(actor, ticketId) {
+    const ticket = await prisma_1.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) {
+        throw new Error("TICKET_NOT_FOUND");
+    }
+    if (actor.role !== "DEPARTMENT_MEMBER" ||
+        ticket.currentDepartmentId !== actor.departmentId) {
+        throw new Error("FORBIDDEN");
+    }
+    if (ticket.status === shared_1.TicketStatus.RESOLVED ||
+        ticket.status === shared_1.TicketStatus.CLOSED) {
+        throw new Error("ESCALATION_NOT_ALLOWED");
+    }
+    const nextStep = await (0, pipeline_1.getNextStep)(ticket.ticketTypeId, ticket.pipelineStepIndex);
+    return {
+        canEscalate: nextStep !== null,
+        nextDepartment: nextStep?.department ?? null,
+    };
 }
 async function escalateTicket(actor, ticketId, message) {
     const ticket = await prisma_1.prisma.ticket.findUnique({ where: { id: ticketId } });
@@ -304,6 +399,7 @@ async function escalateTicket(actor, ticketId, message) {
             ticketId,
             type: shared_1.ActivityType.ESCALATED,
             actorId: actor.id,
+            targetUserId: ticket.assigneeId ?? undefined,
             targetDepartmentId: nextStep.departmentId,
             sourceDepartmentId: ticket.currentDepartmentId,
             message: message?.trim() || undefined,

@@ -16,7 +16,7 @@ export function TicketSearch({ value, onChange, className }: TicketSearchProps) 
     <div className={cn("relative w-full max-w-sm", className)}>
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        type="search"
+        type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Search by title or type…"

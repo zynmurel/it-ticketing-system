@@ -134,7 +134,7 @@ export async function getTicketForActor(actor: AuthUser, id: string) {
 }
 
 export async function getTicketById(id: string) {
-  return prisma.ticket.findUnique({
+  const ticket = await prisma.ticket.findUnique({
     where: { id },
     include: {
       ...ticketInclude,
@@ -147,13 +147,42 @@ export async function getTicketById(id: string) {
       },
     },
   });
+
+  if (!ticket) return null;
+
+  const targetUserIds = [
+    ...new Set(
+      ticket.activities
+        .map((activity) => activity.targetUserId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const targetUsers =
+    targetUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: targetUserIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : [];
+
+  const targetUserById = new Map(targetUsers.map((user) => [user.id, user]));
+
+  return {
+    ...ticket,
+    activities: ticket.activities.map((activity) => ({
+      ...activity,
+      targetUser: activity.targetUserId
+        ? (targetUserById.get(activity.targetUserId) ?? null)
+        : null,
+    })),
+  };
 }
 
-/** Personal tickets: created by or assigned to the user, excluding unassigned. */
+/** Personal tickets: created by or assigned to the user. */
 export async function listMyTickets(actor: AuthUser) {
   return prisma.ticket.findMany({
     where: {
-      assigneeId: { not: null },
       OR: [{ createdById: actor.id }, { assigneeId: actor.id }],
     },
     orderBy: { updatedAt: "desc" },
@@ -222,18 +251,50 @@ export async function listDepartmentAssigned(actor: AuthUser) {
 
 /** Tickets escalated away from this department — stay on the assigned board. */
 export async function listDepartmentBoardEscalated(actor: AuthUser) {
-  return prisma.ticket.findMany({
+  const tickets = await prisma.ticket.findMany({
     where: {
       currentDepartmentId: { not: actor.departmentId },
       activities: {
         some: {
           type: ActivityType.ESCALATED,
-          sourceDepartmentId: actor.departmentId,
+          OR: [
+            { sourceDepartmentId: actor.departmentId },
+            {
+              sourceDepartmentId: null,
+              actor: { departmentId: actor.departmentId },
+            },
+          ],
         },
       },
     },
     orderBy: { updatedAt: "desc" },
-    include: ticketInclude,
+    include: {
+      ...ticketInclude,
+      activities: {
+        where: {
+          type: ActivityType.ESCALATED,
+          OR: [
+            { sourceDepartmentId: actor.departmentId },
+            {
+              sourceDepartmentId: null,
+              actor: { departmentId: actor.departmentId },
+            },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { actorId: true, targetUserId: true },
+      },
+    },
+  });
+
+  return tickets.map(({ activities, ...ticket }) => {
+    const escalation = activities[0];
+    return {
+      ...ticket,
+      escalatedFromAssigneeId:
+        escalation?.targetUserId ?? escalation?.actorId ?? null,
+    };
   });
 }
 
@@ -319,9 +380,6 @@ export async function assignTicket(
       type: ticket.assigneeId ? ActivityType.REASSIGNED : ActivityType.ASSIGNED,
       actorId: actor.id,
       targetUserId: assigneeId,
-      message: ticket.assigneeId
-        ? `Reassigned to ${assignee.name}`
-        : `Assigned to ${assignee.name}`,
       previousStatus: ticket.status,
       newStatus: updated.status,
     });
@@ -334,6 +392,7 @@ export async function updateTicketStatus(
   actor: AuthUser,
   ticketId: string,
   status: TicketStatus,
+  message?: string,
 ) {
   const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
   if (!ticket) {
@@ -358,6 +417,7 @@ export async function updateTicketStatus(
       ticketId,
       type: ActivityType.STATUS_CHANGED,
       actorId: actor.id,
+      message: message?.trim() || undefined,
       previousStatus: ticket.status,
       newStatus: status,
     });
@@ -443,6 +503,7 @@ export async function escalateTicket(
       ticketId,
       type: ActivityType.ESCALATED,
       actorId: actor.id,
+      targetUserId: ticket.assigneeId ?? undefined,
       targetDepartmentId: nextStep.departmentId,
       sourceDepartmentId: ticket.currentDepartmentId,
       message: message?.trim() || undefined,

@@ -54,6 +54,27 @@ function ActorName({ name }: { name: string }) {
   return <span className="font-medium text-foreground">{name}</span>;
 }
 
+function assigneeLabel(activity: ActivityItem): string | null {
+  if (activity.targetUser) return activity.targetUser.name;
+  if (!activity.message) return null;
+
+  const match = activity.message.match(/^(?:Re)?assigned to (.+)$/i);
+  return match?.[1] ?? null;
+}
+
+function isSelfAssignment(activity: ActivityItem): boolean {
+  if (activity.targetUserId) {
+    return activity.targetUserId === activity.actorId;
+  }
+
+  const assignee = assigneeLabel(activity);
+  return (
+    assignee?.localeCompare(activity.actor.name, undefined, {
+      sensitivity: "accent",
+    }) === 0
+  );
+}
+
 type ActivityVisual =
   | { kind: "user"; name: string; className: string }
   | { kind: "icon"; icon: React.ReactNode; className: string };
@@ -110,45 +131,64 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
           {actor} created the ticket
         </p>
       );
-    case "ASSIGNED":
+    case "ASSIGNED": {
+      if (isSelfAssignment(activity)) {
+        return (
+          <p className="text-sm text-muted-foreground">
+            {actor} self-assigned this ticket
+          </p>
+        );
+      }
+
+      const assignee = assigneeLabel(activity);
       return (
         <p className="text-sm text-muted-foreground">
-          {actor} assigned{" "}
-          {activity.message ? (
-            <span className="text-foreground">{activity.message}</span>
-          ) : (
-            "this ticket"
-          )}
+          {actor} assigned the ticket to{" "}
+          {assignee ? <ActorName name={assignee} /> : "this ticket"}
         </p>
       );
-    case "REASSIGNED":
+    }
+    case "REASSIGNED": {
+      if (isSelfAssignment(activity)) {
+        return (
+          <p className="text-sm text-muted-foreground">
+            {actor} self-reassigned this ticket
+          </p>
+        );
+      }
+
+      const assignee = assigneeLabel(activity);
       return (
         <p className="text-sm text-muted-foreground">
-          {actor} reassigned{" "}
-          {activity.message ? (
-            <span className="text-foreground">{activity.message}</span>
-          ) : (
-            "this ticket"
-          )}
+          {actor} reassigned the ticket to{" "}
+          {assignee ? <ActorName name={assignee} /> : "this ticket"}
         </p>
       );
+    }
     case "STATUS_CHANGED":
       return (
-        <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-          {actor} changed status
-          {activity.previousStatus ? (
-            <>
-              {" "}
-              from <StatusPill status={activity.previousStatus} />
-            </>
+        <div className="space-y-2">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            {actor} changed status
+            {activity.previousStatus ? (
+              <>
+                {" "}
+                from <StatusPill status={activity.previousStatus} />
+              </>
+            ) : null}
+            {activity.newStatus ? (
+              <>
+                {" "}
+                to <StatusPill status={activity.newStatus} />
+              </>
+            ) : null}
+          </p>
+          {activity.message ? (
+            <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm text-foreground/90">
+              {activity.message}
+            </p>
           ) : null}
-          {activity.newStatus ? (
-            <>
-              {" "}
-              to <StatusPill status={activity.newStatus} />
-            </>
-          ) : null}
-        </p>
+        </div>
       );
     case "ESCALATED":
       return (

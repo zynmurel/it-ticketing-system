@@ -28,7 +28,11 @@ export function useDepartmentBoardMutations(
   );
   const [dialogUpdating, setDialogUpdating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [closePending, setClosePending] = useState<TicketSummary | null>(null);
+  const [statusChangePending, setStatusChangePending] = useState<{
+    ticket: TicketSummary;
+    status: TicketStatus;
+  } | null>(null);
+  const [statusRemark, setStatusRemark] = useState("");
   const [escalateFlow, setEscalateFlow] = useState<{
     ticket: TicketSummary;
     nextDepartment: DepartmentRef;
@@ -136,51 +140,39 @@ export function useDepartmentBoardMutations(
         return;
       }
 
-      if (targetColumn === "CLOSED") {
-        setClosePending(ticket);
-        return;
-      }
-
       const status = statusForColumn(targetColumn);
       if (!status) return;
 
-      void runBoardMutation(
-        ticket.id,
-        (current) => applyStatusToBoard(current, ticket.id, status),
-        () =>
-          authFetch(`/tickets/${ticket.id}/status`, {
-            method: "PATCH",
-            body: JSON.stringify({ status }),
-          }),
-      );
+      setStatusRemark("");
+      setStatusChangePending({ ticket, status });
     },
-    [
-      departmentId,
-      openEscalateFlow,
-      pendingTicketIds,
-      runBoardMutation,
-    ],
+    [departmentId, openEscalateFlow, pendingTicketIds],
   );
 
-  const handleCloseConfirm = useCallback(async () => {
-    if (!closePending) return;
+  const handleStatusChangeConfirm = useCallback(async () => {
+    if (!statusChangePending) return;
 
-    const ticketId = closePending.id;
+    const { ticket, status } = statusChangePending;
+    const message = statusRemark.trim();
     setDialogUpdating(true);
-    setClosePending(null);
+    setStatusChangePending(null);
+    setStatusRemark("");
 
     await runBoardMutation(
-      ticketId,
-      (current) => applyStatusToBoard(current, ticketId, TicketStatus.CLOSED),
+      ticket.id,
+      (current) => applyStatusToBoard(current, ticket.id, status),
       () =>
-        authFetch(`/tickets/${ticketId}/status`, {
+        authFetch(`/tickets/${ticket.id}/status`, {
           method: "PATCH",
-          body: JSON.stringify({ status: TicketStatus.CLOSED }),
+          body: JSON.stringify({
+            status,
+            message: message || undefined,
+          }),
         }),
     );
 
     setDialogUpdating(false);
-  }, [closePending, runBoardMutation]);
+  }, [runBoardMutation, statusChangePending, statusRemark]);
 
   const handleEscalateConfirm = useCallback(async () => {
     if (!escalateFlow) return;
@@ -209,8 +201,11 @@ export function useDepartmentBoardMutations(
     pendingTicketIds,
     dialogUpdating,
     actionError,
-    closePending,
-    setClosePending,
+    statusChangePending,
+    setStatusChangePending,
+    statusRemark,
+    setStatusRemark,
+    handleStatusChangeConfirm,
     escalateFlow,
     setEscalateFlow,
     noNextDepartmentOpen,
@@ -222,7 +217,6 @@ export function useDepartmentBoardMutations(
     setEscalateMessage,
     moveToColumn,
     openEscalateFlow,
-    handleCloseConfirm,
     handleEscalateConfirm,
     runBoardMutation,
     refreshBoard,

@@ -31,8 +31,11 @@ import { useDepartmentBoardMutations } from "@/hooks/use-department-board-mutati
 import {
   BOARD_COLUMNS,
   buildColumnTickets,
+  filterDepartmentBoard,
   getMoveTargets,
+  hasActiveBoardFilters,
   type BoardColumnId,
+  type DepartmentBoardFilters,
 } from "@/lib/department-board-shared";
 import { ticketStatusDot, ticketStatusStyles } from "@/lib/ticket-status-theme";
 import { cn } from "@/lib/utils";
@@ -42,6 +45,7 @@ type DepartmentAssignedTableProps = {
   departmentId: string;
   board: DepartmentBoard;
   onBoardChange: (board: DepartmentBoard) => void;
+  filters: DepartmentBoardFilters;
 };
 
 function MoveTicketMenu({
@@ -107,14 +111,27 @@ export function DepartmentAssignedTable({
   departmentId,
   board,
   onBoardChange,
+  filters,
 }: DepartmentAssignedTableProps) {
-  const columns = useMemo(() => buildColumnTickets(board), [board]);
+  const displayBoard = useMemo(
+    () => filterDepartmentBoard(board, filters),
+    [board, filters],
+  );
+
+  const columns = useMemo(
+    () => buildColumnTickets(displayBoard),
+    [displayBoard],
+  );
 
   const mutations = useDepartmentBoardMutations(
     board,
     onBoardChange,
     departmentId,
   );
+
+  const filtersActive = hasActiveBoardFilters(filters);
+  const totalTickets =
+    board.inDepartment.length + board.escalated.length;
 
   return (
     <div className="min-w-0 space-y-3">
@@ -153,7 +170,11 @@ export function DepartmentAssignedTable({
             <TabsContent key={column.id} value={column.id} className="mt-3">
               {tickets.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-                  No {column.label.toLowerCase()} tickets.
+                  {totalTickets === 0
+                    ? `No ${column.label.toLowerCase()} tickets.`
+                    : filtersActive
+                      ? "No tickets match your filters."
+                      : `No ${column.label.toLowerCase()} tickets.`}
                 </div>
               ) : (
                 <div className="rounded-xl bg-secondary/50 p-2">
@@ -241,8 +262,16 @@ export function DepartmentAssignedTable({
       </Tabs>
 
       <DepartmentBoardActionDialogs
-        closePending={mutations.closePending}
-        onClosePendingChange={(open) => !open && mutations.setClosePending(null)}
+        statusChangePending={mutations.statusChangePending}
+        onStatusChangePendingChange={(open) => {
+          if (!open) {
+            mutations.setStatusChangePending(null);
+            mutations.setStatusRemark("");
+          }
+        }}
+        statusRemark={mutations.statusRemark}
+        onStatusRemarkChange={mutations.setStatusRemark}
+        onStatusChangeConfirm={() => void mutations.handleStatusChangeConfirm()}
         escalateFlow={mutations.escalateFlow}
         onEscalateFlowChange={(open) => {
           if (!open) {
@@ -257,7 +286,6 @@ export function DepartmentAssignedTable({
         escalateBlockedOpen={mutations.escalateBlockedOpen}
         onEscalateBlockedOpenChange={mutations.setEscalateBlockedOpen}
         dialogUpdating={mutations.dialogUpdating}
-        onCloseConfirm={() => void mutations.handleCloseConfirm()}
         onEscalateConfirm={() => void mutations.handleEscalateConfirm()}
       />
     </div>

@@ -176,7 +176,10 @@ router.patch(
   "/:id/status",
   requireRole(Role.DEPARTMENT_MEMBER),
   async (req, res) => {
-    const { status } = req.body as { status?: TicketStatus };
+    const { status, message } = req.body as {
+      status?: TicketStatus;
+      message?: string;
+    };
     if (!status || !Object.values(TicketStatus).includes(status)) {
       res.status(400).json({ error: "Valid status is required" });
       return;
@@ -187,6 +190,7 @@ router.patch(
         req.user!,
         req.params.id as string,
         status,
+        message,
       );
       res.json({ ticket });
     } catch (err) {
