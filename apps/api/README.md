@@ -14,13 +14,15 @@ From **repo root** (recommended):
 pnpm install
 cp apps/api/.env.example apps/api/.env
 pnpm db:up
-pnpm db:setup
+pnpm db:setup   # builds shared, generates Prisma client, migrates, seeds
 ```
 
-Or from this folder:
+Or from this folder (manual steps):
 
 ```bash
 cp .env.example .env
+pnpm --filter @it-ticketing/shared run build
+pnpm exec prisma generate
 pnpm exec prisma migrate deploy
 pnpm exec prisma db seed
 ```

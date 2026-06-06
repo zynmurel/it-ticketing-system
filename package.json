@@ -8,9 +8,10 @@
     "build": "pnpm run check",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "db:generate": "pnpm --filter api exec prisma generate",
     "db:migrate": "pnpm --filter api exec prisma migrate deploy",
-    "db:seed": "pnpm --filter api exec prisma db seed",
-    "db:setup": "pnpm run db:migrate && pnpm run db:seed",
+    "db:seed": "pnpm --filter @it-ticketing/shared run build && pnpm run db:generate && pnpm --filter api exec prisma db seed",
+    "db:setup": "pnpm --filter @it-ticketing/shared run build && pnpm run db:generate && pnpm run db:migrate && pnpm run db:seed",
     "dev:api": "pnpm --filter api run dev",
     "dev:web": "pnpm --filter web run dev",
     "lint:web": "pnpm --filter web run lint"
