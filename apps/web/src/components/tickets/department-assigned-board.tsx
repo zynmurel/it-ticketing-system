@@ -163,7 +163,7 @@ function BoardColumn({
     >
       {isOver && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/10 dark:bg-background/80 backdrop-blur-sm top-[41px]">
-          <div className="flex gap-2 rounded-md bg-background/80 px-3 py-20 shadow-sm h-full">
+          <div className="flex gap-2 rounded-md px-3 py-20 shadow-sm h-full">
             <ArrowDown className="size-4 text-primary" />
             <span className="text-sm font-medium">Move ticket here</span>
           </div>

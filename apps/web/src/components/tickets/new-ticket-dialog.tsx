@@ -171,7 +171,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
             </p>
           ) : null}
 
-          <DialogFooter className="px-0 pb-0">
+          <DialogFooter className="px-3 pb-3">
             <Button
               type="button"
               variant="outline"

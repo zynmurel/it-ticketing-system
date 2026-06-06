@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Role, type TicketStatus, type TicketSummary } from "@it-ticketing/shared";
 import { useAuth } from "@/components/auth/auth-provider";
+import { DepartmentMemberGuard } from "@/components/department/department-member-guard";
 import { AppShell } from "@/components/layout/app-shell";
 import {
   TicketStatusFilter,
@@ -47,7 +48,8 @@ export default function EscalatedTicketsPage() {
   }, [user]);
 
   return (
-    <AppShell title="Escalated tickets">
+    <DepartmentMemberGuard>
+      <AppShell title="Escalated tickets">
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -55,7 +57,7 @@ export default function EscalatedTicketsPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {isDepartmentMember
-              ? `Tickets your department worked on that have moved on from ${user?.department.name}.`
+              ? `Tickets your department escalated to the next step in the pipeline.`
               : "Tickets you submitted that have been escalated to another department."}
           </p>
         </div>
@@ -90,5 +92,6 @@ export default function EscalatedTicketsPage() {
         )}
       </div>
     </AppShell>
+    </DepartmentMemberGuard>
   );
 }

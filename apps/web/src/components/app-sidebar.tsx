@@ -26,6 +26,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
   const { openNewTicket } = useNewTicket();
 
+  const isDepartmentMember = user?.role === Role.DEPARTMENT_MEMBER;
+
   const departmentTicketItems = [
     {
       title: "Queue Table",
@@ -37,16 +39,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
   ];
 
-  const personalTicketItems = [
-    {
-      title: "My tickets",
-      url: "/tickets",
-    },
-    {
-      title: "Escalated tickets",
-      url: "/tickets/escalated",
-    },
-  ];
+  const ticketNavItems = isDepartmentMember
+    ? [
+        {
+          title: "Tickets",
+          url: "/tickets",
+          icon: <TicketIcon />,
+          items: [
+            { title: "My tickets", url: "/tickets" },
+            { title: "Escalated tickets", url: "/tickets/escalated" },
+          ],
+        },
+        {
+          title: "Members",
+          url: "/members",
+          icon: <UsersIcon />,
+        },
+      ]
+    : [
+        {
+          title: "My tickets",
+          url: "/tickets",
+          icon: <TicketIcon />,
+        },
+      ];
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -64,14 +80,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        {user?.department ? (
+        {isDepartmentMember && user?.department ? (
           <div className="px-2 group-data-[collapsible=icon]:hidden">
             <DepartmentDetails department={user.department} role={user.role} />
           </div>
         ) : null}
       </SidebarHeader>
       <SidebarContent>
-        {user?.role === Role.DEPARTMENT_MEMBER ? (
+        {isDepartmentMember ? (
           <NavMain
             groupLabel="Department tickets"
             items={[
@@ -84,26 +100,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             ]}
           />
         ) : null}
-        <NavMain
-          groupLabel="Tickets"
-          items={[
-            {
-              title: "Tickets",
-              url: "/tickets",
-              icon: <TicketIcon />,
-              items: personalTicketItems,
-            },
-            ...(user?.role === Role.DEPARTMENT_MEMBER
-              ? [
-                  {
-                    title: "Members",
-                    url: "/members",
-                    icon: <UsersIcon />,
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <NavMain groupLabel="Tickets" items={ticketNavItems} />
         <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>Quick action</SidebarGroupLabel>

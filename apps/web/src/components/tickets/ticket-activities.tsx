@@ -135,7 +135,8 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
       if (isSelfAssignment(activity)) {
         return (
           <p className="text-sm text-muted-foreground">
-            {actor} self-assigned this ticket
+            {actor} self-assigned this ticket and moved it to{" "}
+            {<StatusPill status={"IN_PROGRESS"} />}
           </p>
         );
       }
@@ -144,7 +145,8 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
       return (
         <p className="text-sm text-muted-foreground">
           {actor} assigned the ticket to{" "}
-          {assignee ? <ActorName name={assignee} /> : "this ticket"}
+          {assignee ? <ActorName name={assignee} /> : "this ticket"}{" "}
+          and moved it to {<StatusPill status={"IN_PROGRESS"} />}
         </p>
       );
     }
@@ -152,7 +154,8 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
       if (isSelfAssignment(activity)) {
         return (
           <p className="text-sm text-muted-foreground">
-            {actor} self-reassigned this ticket
+            {actor} self-reassigned this ticket and moved it to{" "}
+            {<StatusPill status={"IN_PROGRESS"} />}
           </p>
         );
       }
@@ -161,7 +164,8 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
       return (
         <p className="text-sm text-muted-foreground">
           {actor} reassigned the ticket to{" "}
-          {assignee ? <ActorName name={assignee} /> : "this ticket"}
+          {assignee ? <ActorName name={assignee} /> : "this ticket"} {" "}
+          and moved it to {<StatusPill status={"IN_PROGRESS"} />}
         </p>
       );
     }
@@ -217,7 +221,9 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
     case "REMARK_ADDED":
       return (
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{actor} added a remark</p>
+          <p className="text-sm text-muted-foreground">
+            {actor} added a remark
+          </p>
           {activity.message ? (
             <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm text-foreground/90">
               {activity.message}
@@ -227,7 +233,9 @@ function ActivityContent({ activity }: { activity: ActivityItem }) {
       );
     default:
       return (
-        <p className="text-sm text-muted-foreground">{actor} updated this ticket</p>
+        <p className="text-sm text-muted-foreground">
+          {actor} updated this ticket
+        </p>
       );
   }
 }
@@ -281,10 +289,7 @@ export function TicketActivities({ activities }: TicketActivitiesProps) {
       <h2 className="mb-5 text-base font-semibold tracking-tight">Activity</h2>
       <div className="relative">
         {sorted.map((activity, index) => (
-          <div
-            key={activity.id}
-            className="relative flex gap-3 pb-6 last:pb-0"
-          >
+          <div key={activity.id} className="relative flex gap-3 pb-6 last:pb-0">
             {index < sorted.length - 1 ? (
               <span
                 aria-hidden

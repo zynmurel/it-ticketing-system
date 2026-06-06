@@ -98,7 +98,7 @@ export function NavUser() {
             <DropdownMenuGroup>
               <DropdownMenuItem render={<Link href="/tickets" />}>
                 <TicketIcon />
-                Tickets
+                {user.role === Role.DEPARTMENT_MEMBER ? "Tickets" : "My tickets"}
               </DropdownMenuItem>
               {user.role === Role.DEPARTMENT_MEMBER ? (
                 <DropdownMenuItem render={<Link href="/members" />}>

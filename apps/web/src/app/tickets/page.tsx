@@ -6,8 +6,12 @@ import { PlusIcon } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useNewTicket } from "@/components/tickets/new-ticket-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { MyTicketsFilter } from "@/components/tickets/my-tickets-filter";
 import {
-  TicketStatusFilter,
+  createDefaultOwnershipFilter,
+  filterTicketsByOwnership,
+} from "@/components/tickets/ticket-ownership-filter";
+import {
   createDefaultStatusFilter,
   filterTicketsByStatus,
 } from "@/components/tickets/ticket-status-filter";
@@ -26,12 +30,18 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<Set<TicketStatus>>(
     createDefaultStatusFilter,
   );
+  const [ownershipFilter, setOwnershipFilter] = useState(
+    createDefaultOwnershipFilter,
+  );
   const [search, setSearch] = useState("");
 
   const filteredTickets = useMemo(() => {
-    const searched = filterTicketsBySearch(tickets, search);
+    if (!user) return [];
+
+    const owned = filterTicketsByOwnership(tickets, user.id, ownershipFilter);
+    const searched = filterTicketsBySearch(owned, search);
     return filterTicketsByStatus(searched, statusFilter);
-  }, [tickets, search, statusFilter]);
+  }, [tickets, search, statusFilter, ownershipFilter, user]);
 
   const isDepartmentMember = user?.role === Role.DEPARTMENT_MEMBER;
 
@@ -70,9 +80,11 @@ export default function TicketsPage() {
 
         {!loading && !error ? (
           <div className="space-y-2">
-            <TicketStatusFilter
-              selected={statusFilter}
-              onChange={setStatusFilter}
+            <MyTicketsFilter
+              ownership={ownershipFilter}
+              onOwnershipChange={setOwnershipFilter}
+              status={statusFilter}
+              onStatusChange={setStatusFilter}
             />
             <TicketSearch value={search} onChange={setSearch} />
           </div>
@@ -92,7 +104,9 @@ export default function TicketsPage() {
                 ? "No tickets yet. Create one to get started."
                 : search.trim()
                   ? "No tickets match your search."
-                  : "No tickets match the selected statuses."
+                  : filteredTickets.length === 0
+                    ? "No tickets match the selected filters."
+                    : "No tickets match the selected statuses."
             }
           />
         )}

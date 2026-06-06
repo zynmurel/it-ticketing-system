@@ -1,18 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeftIcon } from "lucide-react";
 import { Role, TicketStatus, type TicketDetail } from "@it-ticketing/shared";
-import { useParams } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { TicketActionsPanel } from "@/components/tickets/ticket-actions-panel";
 import { TicketActivities } from "@/components/tickets/ticket-activities";
 import { TicketDetailsCard } from "@/components/tickets/ticket-details-card";
 import { TicketRemarkForm } from "@/components/tickets/ticket-remark-form";
+import { Button } from "@/components/ui/button";
 import { authFetch, ApiError } from "@/lib/api";
 
 export default function TicketDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +37,10 @@ export default function TicketDetailPage() {
     loadTicket().finally(() => setLoading(false));
   }, [loadTicket]);
 
-  const canAddRemark = false
+  const canAddRemark =
+    user?.role === Role.DEPARTMENT_MEMBER &&
+    ticket?.currentDepartmentId === user.departmentId &&
+    ticket?.status !== TicketStatus.CLOSED;
 
   return (
     <AppShell title="Ticket details">
@@ -48,7 +54,19 @@ export default function TicketDetailPage() {
         ) : ticket ? (
           <div className=" w-full">
             <div className="min-w-0 space-y-8">
-              <section className="space-y-3">
+              <section className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 px-0 py-0"
+                    onClick={() => router.back()}
+                  >
+                    <ArrowLeftIcon className="size-4" />
+                    Back
+                  </Button>
+                </div>
                 <h2 className="text-lg font-medium">Ticket details</h2>
                 <div className=" flex flex-col-reverse lg:grid gap-2 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                   <TicketDetailsCard ticket={ticket} />

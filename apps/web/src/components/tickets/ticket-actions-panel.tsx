@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Role,
   TicketStatus,
@@ -8,7 +8,9 @@ import {
   type TicketDetail,
 } from "@it-ticketing/shared";
 import {
+  ArrowUpRightIcon,
   ChevronRightIcon,
+  Loader2Icon,
   UserPlusIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -27,10 +29,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authFetch, ApiError } from "@/lib/api";
+import { useEscalateTicket } from "@/hooks/use-escalate-ticket";
 import { ticketStatusDot, ticketStatusStyles } from "@/lib/ticket-status-theme";
 import { cn } from "@/lib/utils";
 import { getUserInitials } from "@/lib/user-initials";
 import { Separator } from "../ui/separator";
+import { EscalateTicketDialogs } from "./escalate-ticket-dialogs";
 import { StatusChangeDialog } from "./status-change-dialog";
 
 const allStatuses = Object.values(TicketStatus).filter(
@@ -71,12 +75,14 @@ export function TicketActionsPanel({
 
   const canManage =
     user?.role === Role.DEPARTMENT_MEMBER &&
-    ticket.currentDepartmentId === user.departmentId && !["ESCALATED", "CLOSED"].includes(ticket.status);
+    ticket.currentDepartmentId === user.departmentId && !["CLOSED"].includes(ticket.status);
 
   const canChangeStatus =
-    canManage && ticket.status !== TicketStatus.CLOSED;
+    canManage && ticket.status !== TicketStatus.CLOSED && ticket.status !== TicketStatus.ESCALATED && ticket.status !== TicketStatus.OPEN;
 
   const canAssign = canManage && ticket.status !== TicketStatus.CLOSED;
+
+  const canEscalate = canManage;
 
   const actionsUnavailableMessage =
     user?.role === Role.END_USER
@@ -85,6 +91,19 @@ export function TicketActionsPanel({
           ticket.currentDepartmentId !== user.departmentId
         ? `This ticket is in ${ticket.currentDepartment.name}, not your department. Actions are only available for tickets in your queue.`
         : null;
+
+  const refreshTicket = useCallback(async () => {
+    const data = await authFetch<{ ticket: TicketDetail }>(
+      `/tickets/${ticket.id}`,
+    );
+    onTicketUpdated(data.ticket);
+  }, [ticket.id, onTicketUpdated]);
+
+  const escalation = useEscalateTicket(
+    ticket.id,
+    ticket.status,
+    refreshTicket,
+  );
 
   useEffect(() => {
     if (!canAssign) return;
@@ -99,13 +118,6 @@ export function TicketActionsPanel({
       .catch(() => setMembers([]))
       .finally(() => setLoadingMembers(false));
   }, [canAssign]);
-
-  async function refreshTicket() {
-    const data = await authFetch<{ ticket: TicketDetail }>(
-      `/tickets/${ticket.id}`,
-    );
-    onTicketUpdated(data.ticket);
-  }
 
   function onStatusSelect(status: TicketDetail["status"]) {
     if (!canChangeStatus || status === ticket.status) return;
@@ -313,9 +325,40 @@ export function TicketActionsPanel({
             ) : null}
           </div>
 
-          {actionError ? (
+          {canEscalate ? (
+            <div className="flex flex-col gap-0">
+              <div className="group hidden lg:flex items-center gap-2 rounded-md lg:px-2 lg:py-1.5">
+                <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+                  Escalate
+                </span>
+              </div>
+              <div className="flex px-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  disabled={
+                    updating ||
+                    escalation.dialogUpdating ||
+                    escalation.escalatePreviewLoading
+                  }
+                  onClick={() => void escalation.startEscalate()}
+                >
+                  {escalation.escalatePreviewLoading ? (
+                    <Loader2Icon className="size-3.5 animate-spin" />
+                  ) : (
+                    <ArrowUpRightIcon className="size-3.5" />
+                  )}
+                  Escalate ticket
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {actionError || escalation.actionError ? (
             <p className="px-2 pt-1 text-xs text-destructive" role="alert">
-              {actionError}
+              {actionError ?? escalation.actionError}
             </p>
           ) : null}
         </CollapsibleContent>
@@ -335,6 +378,21 @@ export function TicketActionsPanel({
         onRemarkChange={setStatusRemark}
         updating={updating}
         onConfirm={() => void handleStatusChangeConfirm()}
+      />
+
+      <EscalateTicketDialogs
+        escalateFlow={escalation.escalateFlow}
+        onEscalateFlowChange={(open) => {
+          if (!open) escalation.setEscalateFlow(null);
+        }}
+        escalateMessage={escalation.escalateMessage}
+        onEscalateMessageChange={escalation.setEscalateMessage}
+        noNextDepartmentOpen={escalation.noNextDepartmentOpen}
+        onNoNextDepartmentOpenChange={escalation.setNoNextDepartmentOpen}
+        escalateBlockedOpen={escalation.escalateBlockedOpen}
+        onEscalateBlockedOpenChange={escalation.setEscalateBlockedOpen}
+        dialogUpdating={escalation.dialogUpdating}
+        onEscalateConfirm={() => void escalation.handleEscalateConfirm()}
       />
     </aside>
   );

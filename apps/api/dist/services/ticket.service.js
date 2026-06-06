@@ -152,8 +152,8 @@ async function listMyTickets(actor) {
     });
 }
 /**
- * Tickets that left the viewer's department after department activity.
- * Department members: activity by someone in their dept, ticket no longer there.
+ * Tickets that left the viewer's department after escalation.
+ * Department members: escalated out by their department (not merely touched elsewhere).
  * End users: tickets they created with at least one escalation.
  */
 async function listEscalatedTickets(actor) {
@@ -163,7 +163,14 @@ async function listEscalatedTickets(actor) {
                 currentDepartmentId: { not: actor.departmentId },
                 activities: {
                     some: {
-                        actor: { departmentId: actor.departmentId },
+                        type: shared_1.ActivityType.ESCALATED,
+                        OR: [
+                            { sourceDepartmentId: actor.departmentId },
+                            {
+                                sourceDepartmentId: null,
+                                actor: { departmentId: actor.departmentId },
+                            },
+                        ],
                     },
                 },
             },
@@ -305,9 +312,7 @@ async function assignTicket(actor, ticketId, assigneeId) {
             where: { id: ticketId },
             data: {
                 assigneeId,
-                status: ticket.status === shared_1.TicketStatus.OPEN
-                    ? shared_1.TicketStatus.IN_PROGRESS
-                    : ticket.status,
+                status: shared_1.TicketStatus.IN_PROGRESS,
             },
             include: ticketInclude,
         });
