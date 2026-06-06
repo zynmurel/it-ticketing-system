@@ -70,7 +70,11 @@ async function main() {
   ];
 
   const networkPipeline = [
-    { ticketTypeId: networkIncident.id, departmentId: helpDesk.id, stepOrder: 0 },
+    {
+      ticketTypeId: networkIncident.id,
+      departmentId: helpDesk.id,
+      stepOrder: 0,
+    },
     { ticketTypeId: networkIncident.id, departmentId: tier2.id, stepOrder: 1 },
     {
       ticketTypeId: networkIncident.id,
@@ -111,16 +115,17 @@ async function main() {
   const [alice, bob, carol, dave, eve] = members;
 
   const endUsers = await Promise.all(
-    ["jordan@company.local", "sam@company.local"].map((email, i) =>
-      prisma.user.create({
-        data: {
-          email,
-          name: i === 0 ? "Jordan Lee" : "Sam Ortiz",
-          passwordHash,
-          role: Role.END_USER,
-          departmentId: helpDesk.id,
-        },
-      }),
+    ["jordan@company.local", "sam@company.local", "sean@company.local"].map(
+      (email, i) =>
+        prisma.user.create({
+          data: {
+            email,
+            name: i === 0 ? "Jordan Lee" : i === 1 ? "Sam Ortiz" : "Sean Comingues",
+            passwordHash,
+            role: Role.END_USER,
+            departmentId: helpDesk.id,
+          },
+        }),
     ),
   );
 
@@ -141,6 +146,7 @@ async function main() {
       message?: string;
       targetUserId?: string;
       targetDepartmentId?: string;
+      sourceDepartmentId?: string;
       previousStatus?: TicketStatus;
       newStatus?: TicketStatus;
     }[];
@@ -325,10 +331,14 @@ async function main() {
 
   console.log("Seed complete (take-home spec):");
   console.log("  Departments: Help Desk → Tier 2 Support → Infrastructure");
-  console.log("  Ticket types: IT Hardware, Software Request, Network Incident");
+  console.log(
+    "  Ticket types: IT Hardware, Software Request, Network Incident",
+  );
   console.log("  Members: 2 per department (alice/bob, carol/dave, eve/frank)");
   console.log("  End users: jordan@company.local, sam@company.local");
-  console.log("  Sample tickets: 5 across OPEN / IN_PROGRESS / ESCALATED / CLOSED");
+  console.log(
+    "  Sample tickets: 5 across OPEN / IN_PROGRESS / ESCALATED / CLOSED",
+  );
   console.log("  Password for all accounts: password123");
 }
 
