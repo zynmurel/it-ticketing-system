@@ -14,6 +14,7 @@ import {
 import {
   createDefaultStatusFilter,
   filterTicketsByStatus,
+  TicketStatusFilter,
 } from "@/components/tickets/ticket-status-filter";
 import { TicketSearch } from "@/components/tickets/ticket-search";
 import { TicketsTable } from "@/components/tickets/tickets-table";
@@ -35,15 +36,24 @@ export default function TicketsPage() {
   );
   const [search, setSearch] = useState("");
 
+  const isDepartmentMember = user?.role === Role.DEPARTMENT_MEMBER;
+
   const filteredTickets = useMemo(() => {
     if (!user) return [];
 
-    const owned = filterTicketsByOwnership(tickets, user.id, ownershipFilter);
-    const searched = filterTicketsBySearch(owned, search);
+    const scoped = isDepartmentMember
+      ? filterTicketsByOwnership(tickets, user.id, ownershipFilter)
+      : tickets;
+    const searched = filterTicketsBySearch(scoped, search);
     return filterTicketsByStatus(searched, statusFilter);
-  }, [tickets, search, statusFilter, ownershipFilter, user]);
-
-  const isDepartmentMember = user?.role === Role.DEPARTMENT_MEMBER;
+  }, [
+    tickets,
+    search,
+    statusFilter,
+    ownershipFilter,
+    user,
+    isDepartmentMember,
+  ]);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +79,7 @@ export default function TicketsPage() {
             <p className="text-sm text-muted-foreground">
               {isDepartmentMember
                 ? "Tickets you created or are assigned to."
-                : "Tickets you created and any requests assigned to you."}
+                : "Tickets you created."}
             </p>
           </div>
           <Button onClick={openNewTicket}>
@@ -80,12 +90,19 @@ export default function TicketsPage() {
 
         {!loading && !error ? (
           <div className="space-y-2">
-            <MyTicketsFilter
-              ownership={ownershipFilter}
-              onOwnershipChange={setOwnershipFilter}
-              status={statusFilter}
-              onStatusChange={setStatusFilter}
-            />
+            {isDepartmentMember ? (
+              <MyTicketsFilter
+                ownership={ownershipFilter}
+                onOwnershipChange={setOwnershipFilter}
+                status={statusFilter}
+                onStatusChange={setStatusFilter}
+              />
+            ) : (
+              <TicketStatusFilter
+                selected={statusFilter}
+                onChange={setStatusFilter}
+              />
+            )}
             <TicketSearch value={search} onChange={setSearch} />
           </div>
         ) : null}
