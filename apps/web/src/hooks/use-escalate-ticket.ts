@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { TicketStatus, type DepartmentRef, type EscalationPreview } from "@it-ticketing/shared";
+import { type DepartmentRef, type EscalationPreview, type TicketStatus } from "@it-ticketing/shared";
 import { authFetch, ApiError } from "@/lib/api";
+import { canEscalateTicketStatus } from "@/lib/department-board-shared";
 
 export function useEscalateTicket(
   ticketId: string,
@@ -20,7 +21,7 @@ export function useEscalateTicket(
   const [actionError, setActionError] = useState<string | null>(null);
 
   const startEscalate = useCallback(async () => {
-    if (ticketStatus !== TicketStatus.IN_PROGRESS) {
+    if (!canEscalateTicketStatus(ticketStatus)) {
       setEscalateBlockedOpen(true);
       return;
     }

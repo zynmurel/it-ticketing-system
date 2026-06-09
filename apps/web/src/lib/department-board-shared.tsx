@@ -174,10 +174,16 @@ export function resolveTargetColumn(
   return null;
 }
 
+export function canEscalateTicketStatus(status: TicketStatus): boolean {
+  return (
+    status === TicketStatus.OPEN || status === TicketStatus.IN_PROGRESS || status === TicketStatus.ESCALATED
+  );
+}
+
 export const ESCALATE_ONLY_IN_PROGRESS_MESSAGE = (
   <div>
-    Only <span className="font-bold">In progress</span> tickets can be escalated. Move the ticket to
-    In progress first.
+    Only <span className="font-bold">Open</span> or{" "}
+    <span className="font-bold">In progress</span> tickets can be escalated.
   </div>
 );
 
